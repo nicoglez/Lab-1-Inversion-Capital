@@ -5,3 +5,5 @@ pandas==1.1.2
 pandas-datareader==0.10.0
 typing==3.7.4.3
 plotly==5.10.0
+datetime==4.5
+
