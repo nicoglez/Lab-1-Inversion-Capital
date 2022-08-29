@@ -5,20 +5,19 @@ import numpy as np
 import pandas_datareader.data as web
 from typing import List, Optional
 
-
+# Funcion que elimina simbolos raros
 def delete_symbols(string: str) -> str:
-    # Funcion que elimina simbolos raros
     return "".join([i for i in string.replace(".", "-") if i != "*"]) + ".MX"
 
+# Funcion que agrega un dash - a un string en funcion de un indice dado
 def insert_dash(string: str, index: int) -> str:
-    # funcion que agrega un dash - a un string en funcion de un indice dado
     return string[:index] + '-' + string[index:]
 
+# Funcion que convierte en float una lista de strings, quita las comas para no tener problemas
 def float_converter(data: pd.DataFrame) -> np.array:
-    # funcion que convierte en float una lista de strings, quita las comas para no tener problemas
     return np.array([float("".join([k for k in i if k != ","])) for i in data])
 
-
+# Funcion que baja informacion de csv's de files
 def get_data(path: str) -> pd.DataFrame:
     try:
         files = os.listdir(path)
@@ -61,7 +60,7 @@ def get_adj_closes(tickers: str, start_date: str = None, end_date: Optional[str]
     closes.sort_index(inplace=True)
     return closes
 
-
+# Funcion que baja la informacion historica del portafolio
 def portfolio_history(df: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
     precios_historicos = {}
     stock_index = 0
@@ -75,3 +74,63 @@ def portfolio_history(df: pd.DataFrame, start_date: str, end_date: str) -> pd.Da
         except: # intentar otra vez si no se pudo bajar informacion
             continue
     return pd.DataFrame(precios_historicos)
+
+
+# Clase que con metodos y atributos que busca simular una inversion pasiva
+class inversion_pasiva:
+
+    # Inicializar variables in
+    def __init__(self, df: pd.DataFrame, precios: pd.DataFrame, rends: pd.DataFrame,
+                 capital: float, start_date: str, end_date: str):
+        self.data = df
+        self.cap = capital
+        self.start = start_date
+        self.end = end_date
+        self.prices = precios
+        self.rends = rends
+
+    # Funcion para obtener cash en t=0
+    def Cash(self, money_or_weight: Optional[bool] = False) -> float:
+        data = self.data  # obtener data
+        # Cash es el complemento de las ponderaciones para alcanzar el 100%
+        cash = (1 - sum(data.iloc[:, 0])) if money_or_weight else (1 - sum(data.iloc[:, 0])) * self.cap
+        return cash
+
+    # Obtener pesos iniciales de activos, ya sea con cash o sin cash
+    def weights(self, with_Cash: Optional[bool] = False) -> pd.DataFrame:
+        # los pesos son los pesos en nuestro excel en t=0
+        w = self.data.iloc[:, 0]
+        if with_Cash:
+            w["Cash"] = self.Cash(True)
+        return w
+
+    # Simulacion de estrategia pasiva
+    def simulation(self, comision: Optional[float] = 0) -> pd.DataFrame:
+        # Obtener posicion: Pesos por el capital inicial
+        posicion_pasiva = self.weights() * self.cap
+        # Los precios en t=0 (precio al que compramos)
+        precios_iniciales = self.prices.iloc[0, :].values
+        # El numero de acciones a comprar es nuestra posicion entre los precios iniciaes
+        num_acciones_pasiva = np.floor(posicion_pasiva.values / precios_iniciales)
+        # Obtener portafolio inicial y sumarle comision
+        portafolio_pasivo_inicial = (num_acciones_pasiva * list(precios_iniciales) * (1 + comision))
+        # Lo que falta para nuestro capital lo tomamos como cash
+        cash = self.cap - sum(portafolio_pasivo_inicial)
+
+        # Obtener rendimientos historicos de acciones y hacer una productoria cumulativa para simular estrategia
+        portafolio_historico_pasivo = pd.DataFrame(self.rends).dropna().T + 1
+        portafolio_historico_pasivo.iloc[:, 0] *= portafolio_pasivo_inicial
+        # Cambiar formato
+        pd.options.display.float_format = '{:,.4f}'.format
+        # Crear df con portafolio pasivo
+        portafolio_pasivo = pd.DataFrame()
+        # Juntar con capital en t= 0
+        initial_value = pd.Series({datetime.strptime(posicion_pasiva.name, "%Y-%m-%d"): self.cap})
+        # Sumar por columnas el valor de posicion en cada accion para obtener valor del portafolio en t=n
+        portafolio_pasivo['Capital'] = initial_value.append(portafolio_historico_pasivo.cumprod(axis=1).sum(axis=0))
+        # Obtener rendimientos
+        portafolio_pasivo['Rend'] = portafolio_pasivo['Capital'].pct_change().fillna(0)
+        # Obtener rendimientos acumulados
+        portafolio_pasivo['Rend Acum'] = ((portafolio_pasivo["Rend"] + 1).cumprod() - 1).fillna(0)
+
+        return portafolio_pasivo
