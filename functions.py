@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 import pandas_datareader.data as web
-from typing import List, Optional
+from typing import Optional
 
 # Funcion que elimina simbolos raros
 def delete_symbols(string: str) -> str:
@@ -21,7 +21,7 @@ def float_converter(data: pd.DataFrame) -> np.array:
 def get_data(path: str) -> pd.DataFrame:
     try:
         files = os.listdir(path)
-    except:
+    except ValueError:
         print("Path no encontrado/incorrecto")
     df = pd.DataFrame()  # crear data frame
     # for para leer los n csv's del directorio dado
