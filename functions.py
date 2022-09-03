@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 import pandas_datareader.data as web
-from typing import Optional
+from typing import Optional, List
 
 # Funcion que elimina simbolos raros
 def delete_symbols(string: str) -> str:
@@ -21,26 +21,33 @@ def float_converter(data: pd.DataFrame) -> np.array:
 def get_data(path: str) -> pd.DataFrame:
     try:
         files = os.listdir(path)
-    except ValueError:
+    except:
         print("Path no encontrado/incorrecto")
+
     df = pd.DataFrame()  # crear data frame
+
     # for para leer los n csv's del directorio dado
     for file in files:
         # Leer csvs
         data = pd.read_csv(path + "/" + file, skiprows=2)
         # Obtener fecha del csv
         date = "".join([date for date in file if date.isnumeric()])
+
         # Cambio de formato de fecha
         for i in [4, 7]:
             date = insert_dash(date, i)
+
             # Dividir peso entre 100 porque esta en %, para facilitar lectura
         df[date] = data["Peso (%)"] / 100
+
     # Eliminar simbolos raros del ticker
     df["Ticker"] = [delete_symbols(ticker) for ticker in data["Ticker"]]
+
     # Crear df
     df = df.set_index("Ticker")
+
     # Quitar Stocks sin informacion (SitesB-1 y SitesA-1 no tienen info)
-    incomplete_stocks = ["SITESB-1.MX"]
+    incomplete_stocks = ["SITES1A-1.MX"]
     for i in range(len(df)):
         # Si tienen un na, agregarlos a lista de incompletos
         if True if sum(np.isnan(df.values[i])) else False:
@@ -48,7 +55,12 @@ def get_data(path: str) -> pd.DataFrame:
             incomplete_stocks.append(ticker)
     # Quitar stocks sin informacion
     df.drop(incomplete_stocks, inplace=True)
+
     return df
+
+# Función que obtiene el valor de las columnas de un df y regresa una lista con las mismas
+def get_cols(df: pd.DataFrame) -> List:
+    return list(df.columns)
 
 # Función para descargar precios de cierre:
 def get_adj_closes(tickers: str, start_date: str = None, end_date: Optional[str] = None, freq: str = 'd'):
@@ -76,7 +88,6 @@ def portfolio_history(df: pd.DataFrame, start_date: str, end_date: str) -> pd.Da
     return pd.DataFrame(precios_historicos)
 
 
-# Clase que con metodos y atributos que busca simular una inversion pasiva
 class inversion_pasiva:
 
     # Inicializar variables in
@@ -96,7 +107,7 @@ class inversion_pasiva:
         cash = (1 - sum(data.iloc[:, 0])) if money_or_weight else (1 - sum(data.iloc[:, 0])) * self.cap
         return cash
 
-    # Obtener pesos iniciales de activos, ya sea con cash o sin cash
+    # Obtener pesos de activos, ya sea con cash o sin cash
     def weights(self, with_Cash: Optional[bool] = False) -> pd.DataFrame:
         # los pesos son los pesos en nuestro excel en t=0
         w = self.data.iloc[:, 0]
@@ -126,8 +137,10 @@ class inversion_pasiva:
         portafolio_pasivo = pd.DataFrame()
         # Juntar con capital en t= 0
         initial_value = pd.Series({datetime.strptime(posicion_pasiva.name, "%Y-%m-%d"): self.cap})
+        dates_list = get_cols(self.data)
         # Sumar por columnas el valor de posicion en cada accion para obtener valor del portafolio en t=n
         portafolio_pasivo['Capital'] = initial_value.append(portafolio_historico_pasivo.cumprod(axis=1).sum(axis=0))
+        portafolio_pasivo = portafolio_pasivo[portafolio_pasivo.index.isin(dates_list)]
         # Obtener rendimientos
         portafolio_pasivo['Rend'] = portafolio_pasivo['Capital'].pct_change().fillna(0)
         # Obtener rendimientos acumulados
