@@ -147,3 +147,49 @@ class inversion_pasiva:
         portafolio_pasivo['Rend Acum'] = ((portafolio_pasivo["Rend"] + 1).cumprod() - 1).fillna(0)
 
         return portafolio_pasivo
+
+
+class Sharpe_Optimization:
+
+    def __init__(self, rf):
+        self.rf = rf
+
+    @staticmethod
+    def max_ratio_Sharpe(tickers: np.array, mean: float, rf: float, cov: np.array) -> dict:
+        # Hacemos 6,000 simulaciones por default
+        n_sims = 6000
+
+        # Definir vectores a llamar
+        return_array = np.zeros(n_sims)
+        vol_array = np.zeros(n_sims)
+        sharpe_ratio = np.zeros(n_sims)
+        n_weights = np.zeros([n_sims, len(tickers)])
+
+        # Simular n veces los pesos y caracteristicas del portafolio
+        for i in range(n_sims):
+            rands = np.random.rand(len(tickers))
+            w_temp = rands / sum(rands)
+            n_weights[i, :] = w_temp
+            return_array[i] = np.sum(np.dot(w_temp, mean.values))
+            vol_array[i] = np.dot(w_temp, np.dot(cov, w_temp)) ** 0.5
+
+            sharpe_ratio[i] = (return_array[i] - rf) / vol_array[i]
+
+        # Obtener pesos que dieron mayor radio de sharpe
+        optimal_weights = dict(zip(tickers, [y for y in list(n_weights[np.argmax(sharpe_ratio)])]))
+        return optimal_weights
+
+    def Sharpe_with_prices(self, precios: pd.DataFrame, df: pd.DataFrame,
+                           start_date: Optional[str], end_date: Optional[str]) -> dict:
+        rendimientos_log = np.log(precios / precios.shift()).dropna()
+        rendimientos_log.reset_index(inplace=True)
+        rendimientos_log = rendimientos_log[(rendimientos_log["Date"] >= start_date) &
+                                            (rendimientos_log["Date"] <= end_date)]
+        rendimientos_log.set_index("Date", inplace=True)
+        # Obtener metricas
+        mean_data_sharpe = rendimientos_log.mean() * 252
+        cov_data_sharpe = rendimientos_log.cov() * 252
+        rf = self.rf
+        # Maximizar sharpe y regresar resultado
+        return self.max_ratio_Sharpe(tickers=df.index.values, mean=mean_data_sharpe, rf=rf, cov=cov_data_sharpe)
+
