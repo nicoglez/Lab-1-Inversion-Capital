@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.express as px
 
+
 def weights_chart(optimal_weights: dict):
     # Ordenar pesos de mayor a menor
     dic = dict()
