@@ -21,6 +21,5 @@ Una vez establecido esto, este proyecto se compone de los siguientes archivos:
     
 En estos se encuentra el desarrollo consecuente del laboratorio y cada uno cuenta con un tipo de información especifica. 
 
-Al hacer el desarrollo de este proyecto, se encontro lo siguiente. 
-
+Para ver el desarrollo del proyecto con las respectivas conclusiones, ver el archivo **notebook.ipynb**.
 
