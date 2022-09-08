@@ -94,30 +94,31 @@ def portfolio_history(df: pd.DataFrame, start_date: str, end_date: str) -> pd.Da
             continue
     return pd.DataFrame(precios_historicos)
 
-
+# Clase de Inversion pasiva
 class Inversion_Pasiva:
 
-    # Inicializar variables in
-    def __init__(self, df: pd.DataFrame, precios: pd.DataFrame, rends: pd.DataFrame,
+    # Inicializar variables init
+    def __init__(self, df: pd.DataFrame, prices: pd.DataFrame, rends: pd.DataFrame,
                  capital: float, start_date: str, end_date: str):
         self.data = df
         self.cap = capital
         self.start = start_date
         self.end = end_date
-        self.prices = precios
-        self.rends = rends
+        self.prices = prices.iloc[np.argmax(prices.index == self.start)+1:np.argmax(prices.index == self.end) + 1, :]
+        self.rends = rends.iloc[np.argmax(rends.index == self.start)+1:np.argmax(rends.index == self.end) + 1, :]
 
-    # Funcion para obtener cash en t=0
+    # Funcion para obtener cash en t=start_date
     def Cash(self, money_or_weight: Optional[bool] = False) -> float:
         data = self.data  # obtener data
         # Cash es el complemento de las ponderaciones para alcanzar el 100%
-        cash = (1 - sum(data.iloc[:, 0])) if money_or_weight else (1 - sum(data.iloc[:, 0])) * self.cap
+        cash = (1 - sum(np.argmax(data.columns == self.start))) if money_or_weight else (1 - sum(np.argmax(data.columns == self.start))) * self.cap
         return cash
 
     # Obtener pesos de activos, ya sea con cash o sin cash
     def weights(self, with_Cash: Optional[bool] = False) -> pd.DataFrame:
-        # los pesos son los pesos en nuestro excel en t=0
-        w = self.data.iloc[:, 0]
+        data = self.data  # obtener data
+        # los pesos son los pesos en nuestro excel en t=start_date
+        w = data.iloc[:, np.argmax(data.columns == self.start)]
         if with_Cash:
             w["Cash"] = self.Cash(True)
         return w
@@ -142,7 +143,7 @@ class Inversion_Pasiva:
         pd.options.display.float_format = '{:,.4f}'.format
         # Crear df con portafolio pasivo
         portafolio_pasivo = pd.DataFrame()
-        # Juntar con capital en t= 0
+        # Juntar con capital en t = start_date
         initial_value = pd.Series({datetime.strptime(posicion_pasiva.name, "%Y-%m-%d"): self.cap})
         dates_list = get_cols(self.data)
         # Sumar por columnas el valor de posicion en cada accion para obtener valor del portafolio en t=n
@@ -154,7 +155,6 @@ class Inversion_Pasiva:
         portafolio_pasivo['Rend Acum'] = ((portafolio_pasivo["Rend"] + 1).cumprod() - 1).fillna(0)
 
         return portafolio_pasivo
-
 
 # Clase que ayuda a optimizar Sharpe
 class Sharpe_Optimization:
@@ -175,12 +175,17 @@ class Sharpe_Optimization:
 
         # Simular n veces los pesos y caracteristicas del portafolio
         for i in range(n_sims):
+            # Semilla random para poder concluir un resultado aleatorio, quitar si se necesita
+            np.random.seed(81282)
+            # Generar numeros aleatorios
             rands = np.random.rand(len(tickers))
+            # Encontrar peso de cada aleatorio
             w_temp = rands / sum(rands)
+            # Llenar arrays
             n_weights[i, :] = w_temp
             return_array[i] = np.sum(np.dot(w_temp, mean.values))
             vol_array[i] = np.dot(w_temp, np.dot(cov, w_temp)) ** 0.5
-
+            # Obtener RS
             sharpe_ratio[i] = (return_array[i] - rf) / vol_array[i]
 
         # Obtener pesos que dieron mayor radio de sharpe
@@ -248,7 +253,7 @@ class Inversion_Activa:
             bought_stocks_temp = 0
             selled_stocks_temp = 0
             comision_temp = 0
-            precios_temp = precios_activa.iloc[n_date, :]
+            precios_temp = precios_activa.iloc[n_date+1, :]
             rendimientos_temp = rendimientos_activa.iloc[n_date, :]
 
             for stock in range(len(precios_temp)):
@@ -315,8 +320,8 @@ def Summary(df_1: pd.DataFrame, df_2: pd.DataFrame, col_names: List[str], rf_anu
     df_medidas = pd.DataFrame()
     # Obtener Rend_Mensual
     df_medidas["Rend Mensual %"] = [(df_1.iloc[:, 1].mean()) * 100, (df_2.iloc[:, 1].mean()) * 100]
+    # Obtener Rend Mensual Acumulado
     df_medidas["Rend Acumulado Mensual %"] = [df_1.iloc[:, 2].mean() * 100, (df_2.iloc[:, 2].mean() * 100)]
-    df_medidas["Volatilidad %"] = [df_1.iloc[:, 1].std() * 100, (df_2.iloc[:, 1].std() * 100)]
     # Obtener Ratio de Sharpe
     df_medidas["Ratio de Sharpe"] = [(df_1.iloc[:, 1].mean() - rf) / (df_1.iloc[:, 1].std()),
                                      (df_2.iloc[:, 1].mean() - rf) / (df_2.iloc[:, 1].std())]
